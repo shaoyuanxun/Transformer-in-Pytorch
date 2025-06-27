@@ -200,6 +200,7 @@ class EncoderBlock(nn.Module):
 class Encoder(nn.Module):
     def __init__(
         self,
+        src_emb,
         d_model: int,
         n_head: int,
         d_hidden: int,
@@ -208,6 +209,7 @@ class Encoder(nn.Module):
         device: torch.device,
     ):
         super().__init__()
+        self.src_emb = src_emb  # (B, max_len) -> (B, max_len, d_model)
         self.layers = nn.ModuleList(
             [
                 EncoderBlock(d_model, n_head, d_hidden, drop_prob, device)
@@ -217,7 +219,8 @@ class Encoder(nn.Module):
         self.norm = LayerNorm(d_model, device)
 
     def forward(self, x, src_mask=None):
-        # x: (B, max_len, d_model)
+        # (B, max_len) -> (B, max_len, d_model)
+        x= self.src_emb(x)
         for layer in self.layers:
             x = layer(x, src_mask)
         return self.norm(x)  # (B, max_len, d_model)
@@ -250,6 +253,7 @@ class DecoderBlock(nn.Module):
 class Decoder(nn.Module):
     def __init__(
         self,
+        tgt_emb,
         d_model: int,
         tgt_vocab_size: int,
         n_head: int,
@@ -259,6 +263,7 @@ class Decoder(nn.Module):
         device: torch.device
     ):
         super().__init__()
+        self.tgt_emd = tgt_emb  # (B, tgt_len) -> (B, tgt_len, d_model)
         self.layers = nn.ModuleList(
             [
                 DecoderBlock(d_model, n_head, d_hidden, drop_prob, device)
@@ -269,7 +274,7 @@ class Decoder(nn.Module):
         self.linear_proj = nn.Linear(d_model, tgt_vocab_size).to(device)
 
     def forward(self, x, encoder_output, tgt_mask=None, src_mask=None):
-        # x: (B, tgt_len, d_model)
+        x= self.tgt_emd(x)  # (B, tgt_len) -> (B, tgt_len, d_model)
         for layer in self.layers:
             x = layer(x, encoder_output, tgt_mask, src_mask)
         return self.linear_proj(self.norm(x))  # (B, tgt_len, tgt_vocab_size)
@@ -293,9 +298,9 @@ class Transformer(nn.Module):
         self.src_emb = src_emb
         # (B, tgt_len, d_model)
         self.tgt_emb = tgt_emb
-        self.encoder = Encoder(d_model, n_head, d_hidden, n_layers, drop_prob, device)
+        self.encoder = Encoder(src_emb, d_model, n_head, d_hidden, n_layers, drop_prob, device)
         self.decoder = Decoder(
-            d_model, tgt_vocab_size, n_head, d_hidden, n_layers, drop_prob, device
+            tgt_emb, d_model, tgt_vocab_size, n_head, d_hidden, n_layers, drop_prob, device
         )
 
     def forward(self, src, tgt, src_mask=None, tgt_mask=None):
@@ -309,11 +314,6 @@ class Transformer(nn.Module):
         Returns:
             out: [batch, target_len, dec_voc_size]
         """
-        # (B, src_len) -> (B, src_len, d_model)
-        src = self.src_emb(src)
-        # (B, tgt_len) -> (B, tgt_len, d_model)
-        tgt = self.tgt_emb(tgt)
-        
         # (B, src_len, d_model)
         encoder_output = self.encoder(src, src_mask)
         

@@ -1,8 +1,9 @@
+import os
+
 import torch
+import torchmetrics
 
 from src.dataset.transformer_ds import causal_mask
-import os
-import torchmetrics
 
 
 def greedy_decode(
@@ -29,7 +30,7 @@ def greedy_decode(
             decoder_input, encoder_output, decoder_mask, source_mask
         )
 
-        _, next_word = torch.max(proj_output, dim=1)
+        _, next_word = torch.max(proj_output[:, -1], dim=1)
         decoder_input = torch.cat(
             [
                 decoder_input,
