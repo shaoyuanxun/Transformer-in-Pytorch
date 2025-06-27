@@ -3,52 +3,12 @@ import os
 import torch
 import torchmetrics
 
-from src.dataset.transformer_ds import causal_mask
-
-
-def greedy_decode(
-    model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device
-):
-    sos_idx = tokenizer_tgt.token_to_id("[SOS]")
-    eos_idx = tokenizer_tgt.token_to_id("[EOS]")
-
-    # Precompute the encoder output and reuse it for every step
-    encoder_output = model.encoder(source, source_mask)
-    # Initialize the decoder input with the sos token
-    decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(source).to(device)
-    while True:
-        if decoder_input.size(1) == max_len:
-            break
-
-        # build mask for target
-        decoder_mask = (
-            causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
-        )
-
-        # calculate output(B, seq_len, vocab_size)
-        proj_output = model.decoder(
-            decoder_input, encoder_output, decoder_mask, source_mask
-        )
-
-        _, next_word = torch.max(proj_output[:, -1], dim=1)
-        decoder_input = torch.cat(
-            [
-                decoder_input,
-                torch.empty(1, 1).type_as(source).fill_(next_word.item()).to(device),
-            ],
-            dim=1,
-        )
-
-        if next_word == eos_idx:
-            break
-
-    return decoder_input.squeeze(0)
+from src.inference.greedy_search import greedy_decode
 
 
 def run_validation(
     model,
     validation_ds,
-    tokenizer_src,
     tokenizer_tgt,
     max_len,
     device,
@@ -86,7 +46,6 @@ def run_validation(
                 model,
                 encoder_input,
                 encoder_mask,
-                tokenizer_src,
                 tokenizer_tgt,
                 max_len,
                 device,
@@ -126,6 +85,8 @@ def run_validation(
 
         # Compute the BLEU metric
         metric = torchmetrics.BLEUScore()
-        bleu = metric(predicted, expected)
+        predicted_tokens = [p.split() for p in predicted]
+        expected_tokens = [[e.split()] for e in expected]
+        bleu = metric(predicted_tokens, expected_tokens)
         writer.add_scalar("validation BLEU", bleu, global_step)
         writer.flush()

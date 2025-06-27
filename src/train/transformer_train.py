@@ -9,27 +9,12 @@ from src.config.transformer_config import (get_config, get_weights_file_path,
                                            latest_weights_file_path)
 from src.dataset.transformer_ds import get_ds
 from src.evals.transformer_eval import run_validation
-from src.models.transformer import Transformer, TransformerEmbedding
+from src.models.transformer.transformer import (Transformer,
+                                                TransformerEmbedding)
 from src.train.utils import get_device
 
 
-def train_model(config):
-    # Define the device
-    device = get_device()
-    print("Using device:", device.type)
-
-    if device.type == "cuda":
-        print(f"Device name: {torch.cuda.get_device_name(device.index)}")
-        print(
-            f"Device memory: {torch.cuda.get_device_properties(device.index).total_memory / 1024 ** 3} GB"
-        )
-
-    # Make sure the weights folder exists
-    Path(f"src/weights/{config['datasource']}_{config['model_folder']}").mkdir(
-        parents=True, exist_ok=True
-    )
-
-    train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
+def build_model(config, tokenizer_src, tokenizer_tgt, device):
     src_emb = TransformerEmbedding(
         d_model=config["d_model"],
         max_len=config["max_len"],
@@ -56,13 +41,16 @@ def train_model(config):
         config["n_layers"],
         device,
         config["drop_prob"],
-    )
-
-    # Tensorboard
-    writer = SummaryWriter(config["experiment_name"])
-
+    ).to(device)
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], eps=1e-9)
 
+
+    loss_fn = nn.CrossEntropyLoss(label_smoothing=0.1).to(device)
+    
+    return model, optimizer, loss_fn
+
+def preload_model(model, optimizer, config):
     # If the user specified a model to preload before training, load it
     initial_epoch = 0
     global_step = 0
@@ -83,11 +71,34 @@ def train_model(config):
         global_step = state["global_step"]
     else:
         print("No model to preload, starting from scratch")
+        
+    return model, optimizer, initial_epoch, global_step        
 
-    loss_fn = nn.CrossEntropyLoss(
-        ignore_index=tokenizer_tgt.token_to_id("[PAD]"), label_smoothing=0.1
-    ).to(device)
+def train_model(config):
+    # Define the device
+    device = get_device()
+    print("Using device:", device.type)
 
+    if device.type == "cuda":
+        print(f"Device name: {torch.cuda.get_device_name(device.index)}")
+        print(
+            f"Device memory: {torch.cuda.get_device_properties(device.index).total_memory / 1024 ** 3} GB"
+        )
+
+    # Make sure the weights folder exists
+    Path(f"src/weights/{config['datasource']}_{config['model_folder']}").mkdir(
+        parents=True, exist_ok=True
+    )
+
+    train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
+    
+    model, optimizer, loss_fn = build_model(config, tokenizer_src, tokenizer_tgt, device)
+    
+    model, optimizer, initial_epoch, global_step = preload_model(model, optimizer, config)        
+
+    # Tensorboard
+    writer = SummaryWriter(config["experiment_name"])
+    
     for epoch in range(initial_epoch, config["num_epochs"]):
         torch.cuda.empty_cache()
         model.train()
@@ -98,22 +109,20 @@ def train_model(config):
             decoder_input = batch["decoder_input"].to(device)  # (B, seq_len)
             encoder_mask = batch["encoder_mask"].to(device)  # (B, 1, 1, seq_len)
             decoder_mask = batch["decoder_mask"].to(device)  # (B, 1, seq_len, seq_len)
-
+            label = batch["label"].to(device)  # (B, seq_len)
+            
             # Run the tensors through the encoder, decoder and the projection layer
             proj_output = model(
                 encoder_input, decoder_input, encoder_mask, decoder_mask
             )  # (B, seq_len, vocab_size)
 
-            # Compare the output with the label
-            label = batch["label"].to(device)  # (B, seq_len)
-
             # Compute the loss using a simple cross entropy
             loss = loss_fn(
                 proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1)
             )
-            batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
-
+            
             # Log the loss
+            batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
             writer.add_scalar("train loss", loss.item(), global_step)
             writer.flush()
 
@@ -130,7 +139,6 @@ def train_model(config):
         run_validation(
             model,
             val_dataloader,
-            tokenizer_src,
             tokenizer_tgt,
             config["max_len"],
             device,
@@ -150,8 +158,3 @@ def train_model(config):
             },
             model_filename,
         )
-
-
-if __name__ == "__main__":
-    config = get_config()
-    train_model(config)
