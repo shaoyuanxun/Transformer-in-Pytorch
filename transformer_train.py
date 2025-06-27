@@ -28,7 +28,7 @@ def train_model(config):
         )
 
     # Make sure the weights folder exists
-    Path(f"/weights/{config['datasource']}_{config['model_folder']}").mkdir(
+    Path(f"src/weights/{config['datasource']}_{config['model_folder']}").mkdir(
         parents=True, exist_ok=True
     )
 
@@ -38,12 +38,14 @@ def train_model(config):
         max_len=config["max_len"],
         vocab_size=tokenizer_src.get_vocab_size(),
         drop_prob=config["drop_prob"],
-    )
+        device)
+    
     tgt_emb = TransformerEmbedding(
         d_model=config["d_model"],
         drop_prob=config["drop_prob"],
         max_len=config["max_len"],
         vocab_size=tokenizer_tgt.get_vocab_size(),
+        device
     )
 
     model = Transformer(
