@@ -3,14 +3,15 @@ import math
 import torch
 import torch.nn as nn
 from pkg_resources import require
+from zmq import device
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-6):
+    def __init__(self, dim: int, device: torch.device, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
-        self.alpha = nn.Parameter(torch.ones(dim))
-        self.bias = nn.Parameter(torch.zeros(dim))
+        self.alpha = nn.Parameter(torch.ones(dim)).to(device)
+        self.bias = nn.Parameter(torch.zeros(dim)).to(device)
 
     def forward(self, x):
         # x: (B, seq_len, dim)
@@ -22,10 +23,10 @@ class LayerNorm(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model: int, d_hidden: int, dropout: float):
+    def __init__(self, d_model: int, d_hidden: int, dropout: float, device: torch.device):
         super().__init__()
-        self.linear1 = nn.Linear(d_model, d_hidden)
-        self.linear2 = nn.Linear(d_hidden, d_model)
+        self.linear1 = nn.Linear(d_model, d_hidden).to(device)
+        self.linear2 = nn.Linear(d_hidden, d_model).to(device)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout)
 
@@ -35,11 +36,11 @@ class FeedForward(nn.Module):
 
 
 class TokenEmbeddings(nn.Module):
-    def __init__(self, d_model: int, vocab_size: int):
+    def __init__(self, d_model: int, vocab_size: int, device: torch.device):
         super().__init__()
         self.d_model = d_model
         self.vocab_size = vocab_size
-        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.embedding = nn.Embedding(vocab_size, d_model).to(device)
 
     def forward(self, x):
         # (B, seq_len) -> (B, seq_len, d_model)
@@ -64,10 +65,10 @@ class PositionalEncoding(nn.Module):
         return self.pe[:seq_len, :]  # (seq_len, d_model)
 
 class TransformerEmbedding(nn.Module):
-    def __init__(self, vocab_size: int, d_model: int, max_len: int, drop_prob: float, device: torch.device):
+    def __init__(self, vocab_size: int, d_model: int, max_len: int, drop_prob:float, device: torch.device):
         super().__init__()
-        self.token_embeddings = TokenEmbeddings(d_model, vocab_size)
-        self.positional_encoding = PositionalEncoding(d_model, max_len, device=device)
+        self.token_embeddings = TokenEmbeddings(d_model, vocab_size, device)
+        self.positional_encoding = PositionalEncoding(d_model, max_len,device)
         self.dropout = nn.Dropout(drop_prob)
 
     def forward(self, x):
@@ -79,10 +80,10 @@ class TransformerEmbedding(nn.Module):
 
 
 class ResidualConnection(nn.Module):
-    def __init__(self, d_model: int, drop_prob: float):
+    def __init__(self, d_model: int, drop_prob: float, device: torch.device):
         super().__init__()
         self.dropout = nn.Dropout(drop_prob)
-        self.norm = LayerNorm(d_model)
+        self.norm = LayerNorm(d_model, device)
 
     def forward(self, x, sublayer):
         # (B, seq_len, d_model)
@@ -127,7 +128,7 @@ class ScaleDocProductAttention(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, n_head: int, mask=None, drop_prob=None):
+    def __init__(self, d_model: int, n_head: int, device: torch.device, mask=None, drop_prob=None):
         super().__init__()
         self.d_model = d_model
         self.n_head = n_head
@@ -138,10 +139,10 @@ class MultiHeadAttention(nn.Module):
 
         self.attention = ScaleDocProductAttention(drop_prob)
 
-        self.q_linear = nn.Linear(d_model, d_model)
-        self.k_linear = nn.Linear(d_model, d_model)
-        self.v_linear = nn.Linear(d_model, d_model)
-        self.out_linear = nn.Linear(d_model, d_model)
+        self.q_linear = nn.Linear(d_model, d_model).to(device)
+        self.k_linear = nn.Linear(d_model, d_model).to(device)
+        self.v_linear = nn.Linear(d_model, d_model).to(device)
+        self.out_linear = nn.Linear(d_model, d_model).to(device)
 
     def split(self, tensor):
         #     [batch, seq_len, d_model]
@@ -182,12 +183,12 @@ class MultiHeadAttention(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-    def __init__(self, d_model: int, n_head: int, d_hidden: int, drop_prob: float):
+    def __init__(self, d_model: int, n_head: int, d_hidden: int, drop_prob: float, device: torch.device):
         super().__init__()
-        self.attention = MultiHeadAttention(d_model, n_head, drop_prob=drop_prob)
-        self.ffn = FeedForward(d_model, d_hidden, drop_prob)
+        self.attention = MultiHeadAttention(d_model, n_head, device, drop_prob=drop_prob)
+        self.ffn = FeedForward(d_model, d_hidden, drop_prob,device)
         self.residual_connections = [
-            ResidualConnection(d_model, drop_prob) for _ in range(2)
+            ResidualConnection(d_model, drop_prob, device) for _ in range(2)
         ]
 
     def forward(self, x, src_mask=None):
@@ -204,15 +205,16 @@ class Encoder(nn.Module):
         d_hidden: int,
         n_layers: int,
         drop_prob: float,
+        device: torch.device,
     ):
         super().__init__()
         self.layers = nn.ModuleList(
             [
-                EncoderBlock(d_model, n_head, d_hidden, drop_prob)
+                EncoderBlock(d_model, n_head, d_hidden, drop_prob, device)
                 for _ in range(n_layers)
             ]
         )
-        self.norm = LayerNorm(d_model)
+        self.norm = LayerNorm(d_model, device)
 
     def forward(self, x, src_mask=None):
         # x: (B, max_len, d_model)
@@ -222,13 +224,13 @@ class Encoder(nn.Module):
 
 
 class DecoderBlock(nn.Module):
-    def __init__(self, d_model: int, n_head: int, d_hidden: int, drop_prob: float):
+    def __init__(self, d_model: int, n_head: int, d_hidden: int, drop_prob: float, device: torch.device):
         super().__init__()
-        self.self_attention = MultiHeadAttention(d_model, n_head, drop_prob=drop_prob)
-        self.cross_attention = MultiHeadAttention(d_model, n_head, drop_prob=drop_prob)
-        self.ffn = FeedForward(d_model, d_hidden, drop_prob)
+        self.self_attention = MultiHeadAttention(d_model, n_head, device, drop_prob=drop_prob)
+        self.cross_attention = MultiHeadAttention(d_model, n_head, device, drop_prob=drop_prob)
+        self.ffn = FeedForward(d_model, d_hidden, drop_prob, device)
         self.residual_connections = [
-            ResidualConnection(d_model, drop_prob) for _ in range(3)
+            ResidualConnection(d_model, drop_prob, device) for _ in range(3)
         ]
 
     def forward(self, x, encoder_ouput, tgt_mask=None, src_mask=None):
@@ -254,16 +256,17 @@ class Decoder(nn.Module):
         d_hidden: int,
         n_layers: int,
         drop_prob: float,
+        device: torch.device
     ):
         super().__init__()
         self.layers = nn.ModuleList(
             [
-                DecoderBlock(d_model, n_head, d_hidden, drop_prob)
+                DecoderBlock(d_model, n_head, d_hidden, drop_prob, device)
                 for _ in range(n_layers)
             ]
         )
-        self.norm = LayerNorm(d_model)
-        self.linear_proj = nn.Linear(d_model, tgt_vocab_size)
+        self.norm = LayerNorm(d_model, device)
+        self.linear_proj = nn.Linear(d_model, tgt_vocab_size).to(device)
 
     def forward(self, x, encoder_output, tgt_mask=None, src_mask=None):
         # x: (B, tgt_len, d_model)
@@ -282,6 +285,7 @@ class Transformer(nn.Module):
         n_head: int,
         d_hidden: int,
         n_layers: int,
+        device: torch.device,
         drop_prob: float = 0.1,
     ):
         super().__init__()
@@ -289,9 +293,9 @@ class Transformer(nn.Module):
         self.src_emb = src_emb
         # (B, tgt_len, d_model)
         self.tgt_emb = tgt_emb
-        self.encoder = Encoder(d_model, n_head, d_hidden, n_layers, drop_prob)
+        self.encoder = Encoder(d_model, n_head, d_hidden, n_layers, drop_prob, device)
         self.decoder = Decoder(
-            d_model, tgt_vocab_size, n_head, d_hidden, n_layers, drop_prob
+            d_model, tgt_vocab_size, n_head, d_hidden, n_layers, drop_prob, device
         )
 
     def forward(self, src, tgt, src_mask=None, tgt_mask=None):

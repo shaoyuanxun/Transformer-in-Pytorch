@@ -5,11 +5,8 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from src.config.transformer_config import (
-    get_config,
-    get_weights_file_path,
-    latest_weights_file_path,
-)
+from src.config.transformer_config import (get_config, get_weights_file_path,
+                                           latest_weights_file_path)
 from src.dataset.transformer_ds import get_ds
 from src.evals.transformer_eval import run_validation
 from src.models.transformer import Transformer, TransformerEmbedding
@@ -38,14 +35,15 @@ def train_model(config):
         max_len=config["max_len"],
         vocab_size=tokenizer_src.get_vocab_size(),
         drop_prob=config["drop_prob"],
-        device)
+        device=device
+    )
     
     tgt_emb = TransformerEmbedding(
         d_model=config["d_model"],
         drop_prob=config["drop_prob"],
         max_len=config["max_len"],
         vocab_size=tokenizer_tgt.get_vocab_size(),
-        device
+        device=device
     )
 
     model = Transformer(
@@ -56,8 +54,9 @@ def train_model(config):
         config["n_head"],
         config["d_hidden"],
         config["n_layers"],
+        device,
         config["drop_prob"],
-    ).to(device)
+    )
 
     # Tensorboard
     writer = SummaryWriter(config["experiment_name"])
@@ -92,6 +91,7 @@ def train_model(config):
     for epoch in range(initial_epoch, config["num_epochs"]):
         torch.cuda.empty_cache()
         model.train()
+        
         batch_iterator = tqdm(train_dataloader, desc=f"Processing Epoch {epoch:02d}")
         for batch in batch_iterator:
             encoder_input = batch["encoder_input"].to(device)  # (b, seq_len)
@@ -132,7 +132,7 @@ def train_model(config):
             val_dataloader,
             tokenizer_src,
             tokenizer_tgt,
-            config["seq_len"],
+            config["max_len"],
             device,
             lambda msg: batch_iterator.write(msg),
             global_step,
