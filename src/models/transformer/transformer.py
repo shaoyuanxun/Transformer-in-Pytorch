@@ -2,8 +2,6 @@ import math
 
 import torch
 import torch.nn as nn
-from pkg_resources import require
-from zmq import device
 
 
 class LayerNorm(nn.Module):
@@ -23,7 +21,9 @@ class LayerNorm(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model: int, d_hidden: int, dropout: float, device: torch.device):
+    def __init__(
+        self, d_model: int, d_hidden: int, dropout: float, device: torch.device
+    ):
         super().__init__()
         self.linear1 = nn.Linear(d_model, d_hidden).to(device)
         self.linear2 = nn.Linear(d_hidden, d_model).to(device)
@@ -51,7 +51,7 @@ class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, max_len: int, device: torch.device):
         super().__init__()
         self.max_len = max_len
-        self.pe = torch.zeros(self.max_len, d_model, requires_grad=False, device = device)
+        self.pe = torch.zeros(self.max_len, d_model, requires_grad=False, device=device)
         # (max_len, 1)
         pos = torch.arange(0, self.max_len, dtype=torch.float).unsqueeze(dim=1)
         # (1, d_model/2)
@@ -64,11 +64,19 @@ class PositionalEncoding(nn.Module):
         assert seq_len <= self.max_len, "seq_len exceeds max_len"
         return self.pe[:seq_len, :]  # (seq_len, d_model)
 
+
 class TransformerEmbedding(nn.Module):
-    def __init__(self, vocab_size: int, d_model: int, max_len: int, drop_prob:float, device: torch.device):
+    def __init__(
+        self,
+        vocab_size: int,
+        d_model: int,
+        max_len: int,
+        drop_prob: float,
+        device: torch.device,
+    ):
         super().__init__()
         self.token_embeddings = TokenEmbeddings(d_model, vocab_size, device)
-        self.positional_encoding = PositionalEncoding(d_model, max_len,device)
+        self.positional_encoding = PositionalEncoding(d_model, max_len, device)
         self.dropout = nn.Dropout(drop_prob)
 
     def forward(self, x):
@@ -128,7 +136,9 @@ class ScaleDocProductAttention(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, n_head: int, device: torch.device, mask=None, drop_prob=None):
+    def __init__(
+        self, d_model: int, n_head: int, device: torch.device, mask=None, drop_prob=None
+    ):
         super().__init__()
         self.d_model = d_model
         self.n_head = n_head
@@ -183,10 +193,19 @@ class MultiHeadAttention(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-    def __init__(self, d_model: int, n_head: int, d_hidden: int, drop_prob: float, device: torch.device):
+    def __init__(
+        self,
+        d_model: int,
+        n_head: int,
+        d_hidden: int,
+        drop_prob: float,
+        device: torch.device,
+    ):
         super().__init__()
-        self.attention = MultiHeadAttention(d_model, n_head, device, drop_prob=drop_prob)
-        self.ffn = FeedForward(d_model, d_hidden, drop_prob,device)
+        self.attention = MultiHeadAttention(
+            d_model, n_head, device, drop_prob=drop_prob
+        )
+        self.ffn = FeedForward(d_model, d_hidden, drop_prob, device)
         self.residual_connections = [
             ResidualConnection(d_model, drop_prob, device) for _ in range(2)
         ]
@@ -220,17 +239,28 @@ class Encoder(nn.Module):
 
     def forward(self, x, src_mask=None):
         # (B, max_len) -> (B, max_len, d_model)
-        x= self.src_emb(x)
+        x = self.src_emb(x)
         for layer in self.layers:
             x = layer(x, src_mask)
         return self.norm(x)  # (B, max_len, d_model)
 
 
 class DecoderBlock(nn.Module):
-    def __init__(self, d_model: int, n_head: int, d_hidden: int, drop_prob: float, device: torch.device):
+    def __init__(
+        self,
+        d_model: int,
+        n_head: int,
+        d_hidden: int,
+        drop_prob: float,
+        device: torch.device,
+    ):
         super().__init__()
-        self.self_attention = MultiHeadAttention(d_model, n_head, device, drop_prob=drop_prob)
-        self.cross_attention = MultiHeadAttention(d_model, n_head, device, drop_prob=drop_prob)
+        self.self_attention = MultiHeadAttention(
+            d_model, n_head, device, drop_prob=drop_prob
+        )
+        self.cross_attention = MultiHeadAttention(
+            d_model, n_head, device, drop_prob=drop_prob
+        )
         self.ffn = FeedForward(d_model, d_hidden, drop_prob, device)
         self.residual_connections = [
             ResidualConnection(d_model, drop_prob, device) for _ in range(3)
@@ -260,7 +290,7 @@ class Decoder(nn.Module):
         d_hidden: int,
         n_layers: int,
         drop_prob: float,
-        device: torch.device
+        device: torch.device,
     ):
         super().__init__()
         self.tgt_emd = tgt_emb  # (B, tgt_len) -> (B, tgt_len, d_model)
@@ -274,7 +304,7 @@ class Decoder(nn.Module):
         self.linear_proj = nn.Linear(d_model, tgt_vocab_size).to(device)
 
     def forward(self, x, encoder_output, tgt_mask=None, src_mask=None):
-        x= self.tgt_emd(x)  # (B, tgt_len) -> (B, tgt_len, d_model)
+        x = self.tgt_emd(x)  # (B, tgt_len) -> (B, tgt_len, d_model)
         for layer in self.layers:
             x = layer(x, encoder_output, tgt_mask, src_mask)
         return self.linear_proj(self.norm(x))  # (B, tgt_len, tgt_vocab_size)
@@ -298,9 +328,18 @@ class Transformer(nn.Module):
         self.src_emb = src_emb
         # (B, tgt_len, d_model)
         self.tgt_emb = tgt_emb
-        self.encoder = Encoder(src_emb, d_model, n_head, d_hidden, n_layers, drop_prob, device)
+        self.encoder = Encoder(
+            src_emb, d_model, n_head, d_hidden, n_layers, drop_prob, device
+        )
         self.decoder = Decoder(
-            tgt_emb, d_model, tgt_vocab_size, n_head, d_hidden, n_layers, drop_prob, device
+            tgt_emb,
+            d_model,
+            tgt_vocab_size,
+            n_head,
+            d_hidden,
+            n_layers,
+            drop_prob,
+            device,
         )
 
     def forward(self, src, tgt, src_mask=None, tgt_mask=None):
@@ -316,7 +355,7 @@ class Transformer(nn.Module):
         """
         # (B, src_len, d_model)
         encoder_output = self.encoder(src, src_mask)
-        
+
         return self.decoder(
             tgt, encoder_output, tgt_mask, src_mask
         )  # (B, tgt_len, vocab_size)

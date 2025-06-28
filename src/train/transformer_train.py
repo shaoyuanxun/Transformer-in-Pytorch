@@ -5,12 +5,14 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from src.config.transformer_config import (get_config, get_weights_file_path,
-                                           latest_weights_file_path)
+from src.config.transformer_config import (
+    get_config,
+    get_weights_file_path,
+    latest_weights_file_path,
+)
 from src.dataset.transformer_ds import get_ds
 from src.evals.transformer_eval import run_validation
-from src.models.transformer.transformer import (Transformer,
-                                                TransformerEmbedding)
+from src.models.transformer.transformer import Transformer, TransformerEmbedding
 from src.train.utils import get_device
 
 
@@ -20,15 +22,15 @@ def build_model(config, tokenizer_src, tokenizer_tgt, device):
         max_len=config["max_len"],
         vocab_size=tokenizer_src.get_vocab_size(),
         drop_prob=config["drop_prob"],
-        device=device
+        device=device,
     )
-    
+
     tgt_emb = TransformerEmbedding(
         d_model=config["d_model"],
         drop_prob=config["drop_prob"],
         max_len=config["max_len"],
         vocab_size=tokenizer_tgt.get_vocab_size(),
-        device=device
+        device=device,
     )
 
     model = Transformer(
@@ -42,13 +44,20 @@ def build_model(config, tokenizer_src, tokenizer_tgt, device):
         device,
         config["drop_prob"],
     ).to(device)
-    
+
+    # Initialize the parameters
+    for p in model.parameters():
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], eps=1e-9)
 
+    loss_fn = nn.CrossEntropyLoss(
+        ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.0
+    ).to(device)
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'),label_smoothing=0.0).to(device)
-    
     return model, optimizer, loss_fn
+
 
 def preload_model(model, optimizer, config):
     # If the user specified a model to preload before training, load it
@@ -71,8 +80,9 @@ def preload_model(model, optimizer, config):
         global_step = state["global_step"]
     else:
         print("No model to preload, starting from scratch")
-        
-    return model, optimizer, initial_epoch, global_step        
+
+    return model, optimizer, initial_epoch, global_step
+
 
 def train_model(config):
     # Define the device
@@ -91,18 +101,22 @@ def train_model(config):
     )
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    
-    model, optimizer, loss_fn = build_model(config, tokenizer_src, tokenizer_tgt, device)
-    
-    model, optimizer, initial_epoch, global_step = preload_model(model, optimizer, config)        
+
+    model, optimizer, loss_fn = build_model(
+        config, tokenizer_src, tokenizer_tgt, device
+    )
+
+    model, optimizer, initial_epoch, global_step = preload_model(
+        model, optimizer, config
+    )
 
     # Tensorboard
     writer = SummaryWriter(config["experiment_name"])
-    
+
     for epoch in range(initial_epoch, config["num_epochs"]):
         torch.cuda.empty_cache()
         model.train()
-        
+
         batch_iterator = tqdm(train_dataloader, desc=f"Processing Epoch {epoch:02d}")
         for batch in batch_iterator:
             encoder_input = batch["encoder_input"].to(device)  # (b, seq_len)
@@ -110,7 +124,7 @@ def train_model(config):
             encoder_mask = batch["encoder_mask"].to(device)  # (B, 1, 1, seq_len)
             decoder_mask = batch["decoder_mask"].to(device)  # (B, 1, seq_len, seq_len)
             label = batch["label"].to(device)  # (B, seq_len)
-            
+
             # Run the tensors through the encoder, decoder and the projection layer
             proj_output = model(
                 encoder_input, decoder_input, encoder_mask, decoder_mask
@@ -120,7 +134,7 @@ def train_model(config):
             loss = loss_fn(
                 proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1)
             )
-            
+
             # Log the loss
             batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
             writer.add_scalar("train loss", loss.item(), global_step)
