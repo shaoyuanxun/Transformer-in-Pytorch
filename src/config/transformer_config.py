@@ -7,7 +7,7 @@ def get_config():
         "num_epochs": 30,
         "lr": 1e-4,
         "max_len": 350,
-        "d_model": 1024,
+        "d_model": 512,
         "d_hidden": 2048,
         "n_head": 8,
         "n_layers": 8,

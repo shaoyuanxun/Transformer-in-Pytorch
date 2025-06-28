@@ -53,7 +53,7 @@ def build_model(config, tokenizer_src, tokenizer_tgt, device):
     optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"], eps=1e-9)
 
     loss_fn = nn.CrossEntropyLoss(
-        ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.0
+        ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.1
     ).to(device)
 
     return model, optimizer, loss_fn
