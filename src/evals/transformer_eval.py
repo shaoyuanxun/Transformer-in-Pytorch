@@ -84,9 +84,8 @@ def run_validation(
         writer.flush()
 
         # Compute the BLEU metric
-        metric = torchmetrics.BLEUScore()
-        predicted_tokens = [p.split() for p in predicted]
-        expected_tokens = [[e.split()] for e in expected]
-        bleu = metric(predicted_tokens, expected_tokens)
-        writer.add_scalar("validation BLEU", bleu, global_step)
-        writer.flush()
+        # metric = torchmetrics.BLEUScore()
+        # bleu = metric(predicted, expected)
+        # writer.add_scalar("validation BLEU", bleu, global_step)
+        # writer.flush()
+        

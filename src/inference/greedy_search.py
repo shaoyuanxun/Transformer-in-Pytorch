@@ -37,3 +37,4 @@ def greedy_decode(
       break
     
   return decoder_input.squeeze(0) # (dynamic_seq_len)
+
