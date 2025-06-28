@@ -16,7 +16,22 @@ from src.models.transformer.transformer import Transformer, TransformerEmbedding
 from src.train.utils import get_device
 
 
-def build_model(config, tokenizer_src, tokenizer_tgt, device):
+def build_model(config, tokenizer_src, tokenizer_tgt, device: torch.device):
+    """
+    Builds and initializes the Transformer model, optimizer, and loss function.
+
+    Args:
+        config (dict): Model configuration parameters.
+        tokenizer_src: Tokenizer for the source language.
+        tokenizer_tgt: Tokenizer for the target language.
+        device: The device (CPU or GPU) to run the model on.
+
+    Returns:
+        model: The initialized Transformer model.
+        optimizer: The optimizer for training the model.
+        loss_fn: The loss function used during training.
+    """
+
     src_emb = TransformerEmbedding(
         d_model=config["d_model"],
         max_len=config["max_len"],
@@ -60,7 +75,18 @@ def build_model(config, tokenizer_src, tokenizer_tgt, device):
 
 
 def preload_model(model, optimizer, config):
-    # If the user specified a model to preload before training, load it
+    """
+    Args:
+        model: The Transformer model to be loaded with the preloaded weights.
+        optimizer: The optimizer to be loaded with the preloaded state.
+        config: The configuration parameters.
+
+    Returns:
+        model: The model loaded with the preloaded weights.
+        optimizer: The optimizer loaded with the preloaded state.
+        initial_epoch: The starting epoch for training.
+        global_step: The global step for training.
+    """
     initial_epoch = 0
     global_step = 0
     preload = config["preload"]
@@ -71,6 +97,9 @@ def preload_model(model, optimizer, config):
         if preload
         else None
     )
+
+    # If the user specified a model to preload before training, load it
+    # Otherwise, start from scratch
     if model_filename:
         print(f"Preloading model {model_filename}")
         state = torch.load(model_filename)
@@ -85,10 +114,14 @@ def preload_model(model, optimizer, config):
 
 
 def train_model(config):
-    # Define the device
+    """
+    Train the Transformer model.
+
+    Args:
+        config: A dictionary containing the model and training parameters.
+    """
     device = get_device()
     print("Using device:", device.type)
-
     if device.type == "cuda":
         print(f"Device name: {torch.cuda.get_device_name(device.index)}")
         print(

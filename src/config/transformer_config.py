@@ -2,6 +2,12 @@ from pathlib import Path
 
 
 def get_config():
+    """
+    Returns the configuration for the Transformer model.
+
+    Returns:
+        A dictionary containing the model and training parameters.
+    """
     return {
         "batch_size": 8,
         "num_epochs": 30,
@@ -24,13 +30,32 @@ def get_config():
 
 
 def get_weights_file_path(config, epoch: str):
+    """
+    Constructs the file path for the model weights file for a given epoch.
+
+    Args:
+        config (dict): Configuration dictionary containing model and training parameters.
+        epoch (str): The epoch number to construct the weights file path for.
+
+    Returns:
+        str: The full file path to the weights file for the specified epoch.
+    """
+
     model_folder = f"src/weights/{config['datasource']}_{config['model_folder']}"
     model_filename = f"{config['model_basename']}{epoch}.pt"
     return str(Path(".") / model_folder / model_filename)
 
 
-# Find the latest weights file in the weights folder
 def latest_weights_file_path(config):
+    """
+    Finds the latest weights file in the weights folder.
+
+    Args:
+        config (dict): Configuration dictionary containing model and training parameters.
+
+    Returns:
+        str: The full file path to the latest weights file, or None if there are no weights files.
+    """
     model_folder = f"src/weights/{config['datasource']}_{config['model_folder']}"
     model_filename: str = f"{config['model_basename']}*"
     weights_files = list(Path(model_folder).glob(model_filename))

@@ -17,6 +17,27 @@ def run_validation(
     writer,
     num_examples=2,
 ):
+    """
+    Run validation on the provided dataset using the given model.
+
+    Args:
+        model: The trained model to use for validation.
+        validation_ds: The dataset to validate against, expected to yield batches.
+        tokenizer_tgt: Tokenizer for the target language.
+        max_len: Maximum length for the decoded sequence.
+        device: The device (CPU or GPU) to run the validation on.
+        print_msg: Function to print messages, typically the console print function.
+        global_step: The global step counter, used for logging.
+        writer: An instance of SummaryWriter for logging metrics to TensorBoard.
+        num_examples: The number of examples to print during validation.
+
+    The function performs validation by decoding the input sequences using
+    greedy decoding. It prints the source, target, and predicted translations
+    for a specified number of examples. The function also computes and logs
+    the character error rate (CER), word error rate (WER) and BLEU score using the
+    torchmetrics library.
+    """
+
     model.eval()
     count = 0
 
@@ -83,9 +104,8 @@ def run_validation(
         writer.add_scalar("validation wer", wer, global_step)
         writer.flush()
 
-        # Compute the BLEU metric
+        # TODO:Compute the BLEU metric
         # metric = torchmetrics.BLEUScore()
-        # bleu = metric(predicted, expected)
+        # bleu = metric(predicted_list, expected_list)
         # writer.add_scalar("validation BLEU", bleu, global_step)
         # writer.flush()
-        
