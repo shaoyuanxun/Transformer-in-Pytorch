@@ -12,7 +12,8 @@ from src.config.transformer_config import (
 )
 from src.dataset.transformer_ds import get_ds
 from src.evals.transformer_eval import run_validation
-from src.models.transformer.transformer import Transformer, TransformerEmbedding
+from src.models.transformer.transformer import Transformer
+from src.models.transformer.emb.transformer_emd import TransformerEmbedding
 from src.train.utils import get_device
 
 

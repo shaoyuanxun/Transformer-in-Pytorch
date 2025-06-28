@@ -41,7 +41,7 @@ class ScaleDocProductAttention(nn.Module):
 
         if mask is not None:
             scores.masked_fill_(mask == 0, -1e6)
-        scores = self.softmax(scores, dim=-1)  # [batch, n_head, q_len, kv_len]
+        scores = self.softmax(scores)  # [batch, n_head, q_len, kv_len]
         if self.dropout is not None:
             scores = self.dropout(scores)
 
