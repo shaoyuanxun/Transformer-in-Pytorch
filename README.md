@@ -75,6 +75,14 @@ Finally, in the decoder, the output is projected back into the vocabulary space 
 
 ### 3. Results
 
+#### Training loss plot
+
+![Screenshot from 2025-06-28 17-11-19](https://github.com/user-attachments/assets/e913b00e-331e-4245-b739-ec2a138b1b32)
+
+#### Attention Score Viz
+
+![Screenshot from 2025-06-28 17-29-01](https://github.com/user-attachments/assets/e7713bce-9269-4752-89af-3d81e2bc37a2)
+
 
 ### 4. Usage
 To train the Transformer model, follow these steps:
@@ -111,5 +119,7 @@ Currently, supports greedy search and beam search.
 References
 ----------
 https://arxiv.org/abs/1706.03762
+
 https://www.youtube.com/watch?v=ISNdQcPhsts&t=10575s
+
 https://github.com/hkproj/pytorch-transformer
