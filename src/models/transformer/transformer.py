@@ -3,8 +3,8 @@ import math
 import torch
 import torch.nn as nn
 
-from src.models.transformer.block.encoder import Encoder
-from src.models.transformer.block.decoder import Decoder
+from src.models.transformer.layers.encoder import Encoder
+from src.models.transformer.layers.decoder import Decoder
 
 
 class Transformer(nn.Module):
