@@ -74,10 +74,10 @@ def beam_decode(
         ]
         if all([candidate[0][0][-1].item() == eos_idx for candidate in all_candidates]):
             break
-        if print_results:
-            for i, (candidate, score) in enumerate(all_candidates):
-                print("Beam Search Candidates:")
-                print(
-                    f"Candidate {i}: {tokenizer_tgt.decode(candidate[0].squeeze().detach().cpu().numpy())}, Score: {score}"
-                )
+    if print_results:
+        for i, (candidate, score) in enumerate(all_candidates):
+            print("Beam Search Candidates:")
+            print(
+                f"Candidate {i}: {tokenizer_tgt.decode(candidate[0].squeeze().detach().cpu().numpy())}, Score: {score}"
+            )
     return all_candidates[0][0].squeeze()  # (dynamic_seq_len)
